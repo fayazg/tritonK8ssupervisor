@@ -5,7 +5,7 @@
 * [Deploying on Kubernetes](#deploying-on-kubernetes)
     * [Deploy using Kubernetes Dashboard (Web UI)](#deploy-using-kubernetes-dashboard-web-ui)
     * [Deploy using Kubernetes CLI](#deploy-using-kubernetes-cli)
-* [Components](#components)
+* [References](#references)
     * [Triton CLI](#triton-cli)
         * [Install Triton CLI](#install-triton-cli)
         * [Create Profile](#create-profile)
@@ -19,6 +19,9 @@
         * [Infrastructure Containers](#infrastructure-containers)
         * [Kubernetes Dashboard](#kubernetes-dashboard)
         * [Kubernetes CLI](#kubernetes-cli)
+    * [Autoscaling in Kubernetes](#autoscaling-in-kubernetes)
+    * [Monitoring](#monitoring)
+        * [Monitoring Containers running on Kubernetes](#monitoring-containers-running-on-kubernetes)
 * [Manual Setup](#manual-setup)
     * [Provision KVMs](#provision-kvms)
     * [Allow root access to all KVMs:](#allow-root-access-to-all-kvms)
@@ -250,7 +253,7 @@ The deployment status for all the pods and services can also be viewed using the
 
 <sub>For more information on pods/service and deployments, click [here](https://kubernetes.io/docs/user-guide/) or check the `kubectl` cheetsheet [here](https://kubernetes.io/docs/user-guide/kubectl-cheatsheet/).
 
-## Components
+## References
 Below are the tools that are used by k8sontriton and also detailed description of some of the tasks it performs.
 ### Triton CLI
 Triton CLI tool uses CloudAPI to manage infrastructure in Triton datacenters. We will be using Triton CLI to pull network and package information from the current Triton datancenter configured in the profile.
@@ -390,6 +393,25 @@ Kubernetes environments on Rancher provide a kubectl CLI config file which can b
 ![Kubernetes CLI](img/kubernetes-cli.png "Kubernetes CLI")
 
 <sub>For more details on Kubernetes Environments on Rancher, click [here](https://docs.rancher.com/rancher/v1.5/en/kubernetes/).</sub>
+
+### Autoscaling in Kubernetes
+Kubernetes automatically scales number of pods in a [replication controller](https://kubernetes.io/docs/user-guide/replication-controller/), [deployment](https://kubernetes.io/docs/user-guide/deployments/) or [replica set](https://kubernetes.io/docs/user-guide/replicasets/) based on observed CPU Utilization. The autoscaler is implemented with a period controlled by controller manager's `horizontal-pod-autoscaler-sync-period` flag that has a default value of 30 seconds. During each period, controller manager checks the resource utilization against the defined values for the autoscaler and scale.
+
+<sub>For an autoscaling demo, click [here](https://kubernetes.io/docs/user-guide/horizontal-pod-autoscaling/walkthrough/). You can read more about the autoscaler [here](https://kubernetes.io/docs/user-guide/horizontal-pod-autoscaling/).</sub>
+
+### Monitoring
+In this setup, we are running Kubernetes on Triton using Rancher. Out of the box, Rancher provides status details for its components (including Kubernetes components like etcd/api server/controllers/proxies) in its UI and Kubernetes provides some metrics on apps deployed in its dashboard.
+
+#### Monitoring Containers running on Kubernetes
+Out of the box, Kubernetes Dashboard provides CPU and memory usage for all components. It also provides details about status of components including all [nodes](https://kubernetes.io/docs/admin/node/).
+
+To see an average/overview of all deployments for example, click on **Deployments** button:
+![Kubernetes Monitoring](img/20170328a-k8smonitoring-deployments.png "Kubernetes Monitoring")
+
+By clicking on any of the deployments, we can get a more deployment specific stats including CPU/memory and status details.
+![Kubernetes Monitoring](img/20170328b-k8smonitoring-deployments.png "Kubernetes Monitoring")
+
+<sub>For more information on how to monitor Kubernetes resources, click [here](https://kubernetes.io/docs/concepts/cluster-administration/resource-usage-monitoring/).</sub>
 
 ## Manual Setup
 There are many ways to set up a Kubernetes Cluster. We are using Rancher as a kubernetes management platform. You can read more about Rancher and all it offers [here](http://rancher.com/rancher/).  
