@@ -29,8 +29,12 @@ The following pre-reqs are to be set up on the machine performing the Kubernetes
    OSX comes with python 2.7, but if you are on windows or linux, make sure you have [python](https://www.python.org/downloads/) installed on your system.
 
 ### Starting Kubernetes Cluster
-Download the k8sontriton package and run `setup.sh`.
-
+Download the k8sontriton package and run `setup.sh`:
+```bash
+git clone https://github.com/fayazg/k8sontriton.git
+cd k8sontriton
+./setup.sh
+```
 Follow the on screen instructions answering questions about the cluster. You can use the default by pressing “Enter”/”Return” key.
 
 #### CLI Questions
