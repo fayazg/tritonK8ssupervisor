@@ -1,7 +1,7 @@
 # Benchmarking with [simple-container-benchmarks](https://github.com/misterbisson/simple-container-benchmarks)
 
 **System performance test of Triton KVM and AWS VM using [simple-container-benchmarks](https://github.com/misterbisson/simple-container-benchmarks):**  
-This test was between top general purpose VM AWS has and a comparable Triton KVM. Triton KVM package used for this test is k4-general-kvm-31.75G, and the AWS VM t2.2xlarge.
+This test was between a general purpose VM AWS and a comparable Triton KVM. Triton KVM package used for this test is k4-general-kvm-31.75G, and the AWS VM t2.2xlarge.
 
 For all tests, ubuntu-16.04 image was used on both the Triton KVMs and AWS VMs.  
 
@@ -18,7 +18,7 @@ For more detailed information on what the benchmarking does, click [here](https:
 
 |                       	| Triton                    	| AWS                    	|
 |-----------------------	|---------------------------	|------------------------	|
-| /disk request average 	| 8.470108 s, 128.8 MB/s     	| 8.576607 s, 126.1 MB/s 	|
+| /disk request average 	| 8.470108 s, 128.8 MB/s     	| 13.02394 s, 83.45 MB/s 	|
 | /cpu request average  	| 16.85761 s, 15.96 MB/s     	| 21.63477 s, 12.4 MB/s 	|
 | total mem             	| 32689108                   	| 32946296                	|
 | used mem              	| 1593180                    	| 1595780                 	|
