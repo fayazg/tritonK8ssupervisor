@@ -58,6 +58,8 @@ What KVM package should the master and nodes run on: (14b6fade-d0f8-11e5-85c5-4f
 ```
 
 This will provide a Kubernetes environment on triton that will be set up as below:
+
 ![1x2 architecture](docs/img/20170323b-Triton-Kubernetes.jpg)
+
 
 For a more detailed guide and how the automation works, click [here](docs/detailed.md).

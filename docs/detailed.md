@@ -21,7 +21,7 @@
         *   [Monitoring Containers running on Kubernetes](#monitoring-containers-running-on-kubernetes)
 
 # Triton K8s Supervisor
-This tutorial explains how to automate running a Kubernetes cluster on Triton Cloud with Triton K8s Supervisor.
+This tutorial explains how to automate running a Kubernetes cluster on Triton Cloud with Triton K8s Supervisor.  
 Key components of Triton K8s Supervisor are Rancher, Terraform and Ansible, which are used to automate Kubernetes setup. Terraform is used to provision the KVMs while Ansible roles have been created to install pre-reqs and docker-engine, Rancher server with a kubernetes environment, and connect nodes to it.
 
 Before running the CLI, first thing that should be set up is the [Triton CLI and triton profile](#triton-cli). This profile and triton environment variables (will be set by running`eval $(triton env)`) are used to connect and provision KVMs. During the provisioning, terraform will store information about the KVMs created, so that an ansible hosts and configuration file can be created which will be used by ansible to finish the cluster setup.
@@ -36,31 +36,26 @@ The default setup includes a kvm for Rancher server container to run on, and mul
 
 ## Pre-Reqs
 The following pre-reqs are to be set up on the machine running Triton K8s Supervisor.
-1. [Install and set up triton CLI and a profile](https://docs.joyent.com/public-cloud/api-access/cloudapi)
-
+1. [Install and set up triton CLI and a profile](https://docs.joyent.com/public-cloud/api-access/cloudapi)  
    Install [nodejs](https://nodejs.org/en/download/) and run `npm install -g triton`.
 
-   Triton CLI needs to be configured with a profile because we will be using it and its configuration information to set up our Kubernetes cluster.
-
+   Triton CLI needs to be configured with a profile because we will be using it and its configuration information to set up our Kubernetes cluster.  
    To setup triton CLI, you need to [create an account](https://sso.joyent.com/signup) with Joyent, [add your billing information](https://my.joyent.com/main/#!/account/payment) and [ssh key](https://my.joyent.com/main/#!/account) to your account.
    For more information on how to create an account, billing and ssh key information, look at the [Getting started](https://docs.joyent.com/public-cloud/getting-started) page.
 
    Note: The data center that will be used must have KVM images available for provisioning.
-1. [Install terraform](https://www.terraform.io/intro/getting-started/install.html)
-
+1. [Install terraform](https://www.terraform.io/intro/getting-started/install.html)  
    Terraform is an infrastructure building, changing and versioning tool. It will be used to provision KVMs for the Kubernetes cluster.
 
    Terraform can be installed by getting the appropriate [package](https://releases.hashicorp.com/terraform/0.8.5/terraform_0.8.5_darwin_amd64.zip) for your system which includes a single binary program terraform. Place this binary in a directory that is on the `PATH`.
 
    Note: Supported version of terraform is needed ([4.15](https://releases.hashicorp.com/terraform/0.8.5/terraform_0.8.5_darwin_amd64.zip))
-1. Install Ansible
-
+1. Install Ansible  
    [Ansible](http://docs.ansible.com/ansible/index.html) is and IT automation tool we are using to set up the Kubernetes cluster on JoyentCloud KVMs.
 
    There are [multiple ways to install ansible](http://docs.ansible.com/ansible/intro_installation.html) depending on your operating system. Simplest way to do this is by using `pip` command (python package manager).
    `sudo pip install ansible`
-1. Python v2.x
-
+1. Python v2.x  
    OSX comes with python 2.7, but if you are on windows or linux, make sure you have [python](https://www.python.org/downloads/) installed on your system.
 
 ## Create a Kubernetes cluster
@@ -195,10 +190,8 @@ Once the cluster is up and running, you can deploy apps using the [Kubernetes Da
 Here we will deploy [ghost](https://hub.docker.com/_/ghost/) blogging app using the Web UI and the example Kubernetes [guestbook](https://github.com/kubernetes/kubernetes/tree/master/examples/guestbook) app using the kubectl CLI.
 
 ### Deploy using Kubernetes Dashboard (Web UI)
-For this demo, ghost will be deployed using the [Kubernetes Dashboard](detailed.md#kubernetes-dashboard).
-
-Once the install is done, you will get a URL to the Kubernetes Dashboard, goto that URL.
-
+For this demo, ghost will be deployed using the [Kubernetes Dashboard](detailed.md#kubernetes-dashboard).  
+Once the install is done, you will get a URL to the Kubernetes Dashboard, goto that URL.  
 From there, you should see a **CREATE** button at the top, click that to deploy an app.
 
 ![K8S Dashboard - CREATE](img/20170328a-k8sdashboard-create.png "K8S Dashboard - CREATE")
@@ -221,10 +214,8 @@ App is configured to be exposed externally on port 8080. So, you should see the 
 ### Deploy using Kubernetes CLI
 For this demo, we are going to run one of the example apps ([Guestbook](https://github.com/kubernetes/kubernetes/tree/master/examples/guestbook)) that come in kubernetes package, but first we need to install and configure kubectl to point to our Kubernetes environment.
 
-[Install](detailed.md#triton-cli) `kubectl` and complete [Kubernetes Cluster setup](detailed.md#create-a-cluster).
-
-Once the Kubernetes environment is up and running, you will get a URL to the Kubernetes CLI config page which generates a kubect config file.
-
+[Install](detailed.md#triton-cli) `kubectl` and complete [Kubernetes Cluster setup](detailed.md#create-a-cluster).  
+Once the Kubernetes environment is up and running, you will get a URL to the Kubernetes CLI config page which generates a kubect config file.  
 Go to the Kubernetes CLI config URL and click on **Generate Config**:
 
 ![K8S CLI - Generate Config](img/20170328a-k8scli-generateconfig.png "K8S CLI - Generate Config")
