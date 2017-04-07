@@ -52,20 +52,15 @@ main() {
     echo "Waiting on Kubernetes dashboard to come up."
     echo ""
 
-    KUBERNETES_DASHBOARD_LOCATION=0
-    while [ $KUBERNETES_DASHBOARD_LOCATION == 0 ]; do
-        curl -s "http://$(cat terraform/masters.ip):8080/v2-beta/projects/$(cat ansible/tmp/kubernetes_environment.id)/containers/" > containers.json
-        CONTAINER_COUNT=$(cat containers.json | python -c "import sys, json; item_dict = json.load(sys.stdin)['data']; print len(item_dict)")
-        for (( i=0; i<$CONTAINER_COUNT; i++ )); do
-            CONTAINER_NAME=$(cat containers.json | python -c "import sys, json; print json.load(sys.stdin)['data'][$i]['name']")
-            if [[ $CONTAINER_NAME =~ "kubernetes-dashboard" ]]; then
-                if [[ $(curl -s "http://$(cat terraform/masters.ip):8080/v2-beta/projects/$(cat ansible/tmp/kubernetes_environment.id)/containers/" | python -c "import sys, json; print json.load(sys.stdin)['data'][$i]['state']") =~ "running" ]]; then
-                    KUBERNETES_DASHBOARD_LOCATION=$i
-                fi
+    KUBERNETES_DASHBOARD_UP=
+    while [ ! $KUBERNETES_DASHBOARD_UP ]; do
+        for node in $(cat terraform/hosts.ip); do
+            if [ $(ssh root@$node docker ps | grep kubernetes-dashboard | wc -l) -ne 0 ]; then
+                KUBERNETES_DASHBOARD_UP=true
             fi
         done
-        echo -ne "."
-        sleep 1
+        echo -ne "+"
+        sleep 5
     done
     echo ""
     echo "----> Kubernetes dashboard is at http://$(cat terraform/masters.ip):8080/r/projects/$(cat ansible/tmp/kubernetes_environment.id)/kubernetes-dashboard:9090/"
@@ -442,7 +437,7 @@ function verifyConfig {
     echo "Make sure the above information is correct before answering:"
     echo "    to view list of networks call \"triton networks -l\""
     echo "    to view list of packages call \"triton packages -l\""
-    echo "Make sure that the nodes and master are part of networks that can communicate with each other."
+    echo "WARN: Make sure that the nodes and master are part of networks that can communicate with each other and this system from which the setup is running."
 
 
     while true; do
