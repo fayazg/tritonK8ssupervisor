@@ -54,13 +54,11 @@ main() {
 
     KUBERNETES_DASHBOARD_UP=
     while [ ! $KUBERNETES_DASHBOARD_UP ]; do
-        for node in $(cat terraform/hosts.ip); do
-            if [ $(ssh root@$node docker ps | grep kubernetes-dashboard | wc -l) -ne 0 ]; then
-                KUBERNETES_DASHBOARD_UP=true
-            fi
-        done
-        echo -ne "+"
-        sleep 5
+        echo -ne "."
+        sleep 2
+        if [ $(curl -s http://$(cat terraform/masters.ip):8080/r/projects/$(cat ansible/tmp/kubernetes_environment.id)/kubernetes-dashboard:9090/ | grep -i kubernetes | wc -l) -ne 0 ]; then
+            KUBERNETES_DASHBOARD_UP=true
+        fi
     done
     echo ""
     echo "----> Kubernetes dashboard is at http://$(cat terraform/masters.ip):8080/r/projects/$(cat ansible/tmp/kubernetes_environment.id)/kubernetes-dashboard:9090/"
