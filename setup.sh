@@ -51,11 +51,29 @@ main() {
     echo ""
 
     KUBERNETES_DASHBOARD_UP=
+    DASHBOARD_CONTAINER_COUNT=
     while [ ! $KUBERNETES_DASHBOARD_UP ]; do
         echo -ne "."
-        sleep 5
-        if [ $(curl -s http://$(cat terraform/masters.ip):8080/r/projects/$(cat ansible/tmp/kubernetes_environment.id)/kubernetes-dashboard:9090/ | grep -i kubernetes | wc -l) -ne 0 ]; then
-            KUBERNETES_DASHBOARD_UP=true
+        sleep 1
+        if ! ((`date +%s` % 15)); then
+            DASHBOARD_CONTAINER_COUNT=0
+            cRetVal=$(curl -s http://$(cat terraform/masters.ip):8080/r/projects/$(cat ansible/tmp/kubernetes_environment.id)/kubernetes-dashboard:9090/)
+            if [ $(echo $cRetVal | grep -i kubernetes | wc -l) -ne 0 ]; then
+                KUBERNETES_DASHBOARD_UP=true
+                echo -ne "+"
+            # BUG restart stuck dashboard container
+            else
+                for node in $(cat terraform/hosts.ip); do
+                    DASHBOARD_CONTAINER_COUNT=$(($DASHBOARD_CONTAINER_COUNT + $(ssh root@$node docker ps | grep kubernetes-dashboard | awk '{print $1}' | wc -w)))
+                done
+                if [ $DASHBOARD_CONTAINER_COUNT -eq 2 ] && [ $(curl -s http://$(cat terraform/masters.ip):8080/r/projects/$(cat ansible/tmp/kubernetes_environment.id)/kubernetes-dashboard:9090/ | grep -i "Service Unavailable" | wc -l) -ne 0 ]; then
+                    for node in $(cat terraform/hosts.ip); do
+                        dashboard_container=$(ssh root@$node docker ps | grep kubernetes-dashboard | grep -v k8s_kubernetes-dashboard | awk '{print $1}')
+                        ssh root@$node "docker restart $dashboard_container" >> /dev/null 2>&1
+                    done
+                    echo -ne "-"
+                fi
+            fi
         fi
     done
     echo ""
@@ -102,7 +120,7 @@ function createAnsibleConfigs {
     cd ansible
     sed -i.tmp -e "s;private_key_file = .*$;private_key_file = $(echo $SDC_KEY | sed 's/"//g');g" ansible.cfg
     cd ..
-    rm ansible/ansible.cfg.tmp 2>&1 >> /dev/null
+    rm ansible/ansible.cfg.tmp >> /dev/null 2>&1
 
     echo "    created: ansible/roles/ranchermaster/vars/vars.yml"
 }
@@ -176,7 +194,7 @@ function setConfigToFile {
     sed -i.tmp -e "s~RANCHER_MASTER_HOSTNAME=.*$~RANCHER_MASTER_HOSTNAME=\"$RANCHER_MASTER_HOSTNAME\"~g" config
     sed -i.tmp -e "s~KUBERNETES_NODE_HOSTNAME_BEGINSWITH=.*$~KUBERNETES_NODE_HOSTNAME_BEGINSWITH=\"$KUBERNETES_NODE_HOSTNAME_BEGINSWITH\"~g" config
     sed -i.tmp -e "s~HOST_PACKAGE=.*$~HOST_PACKAGE=\"$HOST_PACKAGE\"~g" config
-    rm config.tmp 2>&1 >> /dev/null
+    rm config.tmp >> /dev/null 2>&1
 }
 function setConfigFromTritonENV {
     eval "$(triton env)"
@@ -191,7 +209,7 @@ function setConfigFromTritonENV {
             foundKey=true
         fi
     done
-    rm config.tmp 2>&1 >> /dev/null
+    rm config.tmp >> /dev/null 2>&1
     if [[ ! foundKey ]]; then
         echo "error: couldn't find the ssh key associated with fingerprint $SDC_KEY_ID in ~/.ssh/ directory..."
         exit 1
@@ -470,14 +488,14 @@ function cleanRunner {
                 cd ..
             fi
             for host_key in $(cat terraform/hosts.ip terraform/masters.ip); do
-                ssh-keygen -R $host_key 2>&1 >> /dev/null
+                ssh-keygen -R $host_key >> /dev/null 2>&1
             done
-            rm -rf terraform/hosts.ip terraform/masters.ip terraform/terraform.* terraform/.terraform* terraform/rancher.tf 2>&1 >> /dev/null
+            rm -rf terraform/hosts.ip terraform/masters.ip terraform/terraform.* terraform/.terraform* terraform/rancher.tf >> /dev/null 2>&1
 
             sed -i.tmp -e "s~private_key_file = .*$~private_key_file = ~g" ansible/ansible.cfg
-            rm -f  ansible/hosts ansible/*retry ansible/ansible.cfg.tmp 2>&1 >> /dev/null
+            rm -f  ansible/hosts ansible/*retry ansible/ansible.cfg.tmp >> /dev/null 2>&1
 
-            rm -rf tmp/* 2>&1 >> /dev/null
+            rm -rf tmp/* >> /dev/null 2>&1
 
             # blank out config
             echo "SDC_URL=" > config
