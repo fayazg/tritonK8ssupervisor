@@ -1,5 +1,3 @@
-# k8sontriton
-
 ## Quick Start Guide
 In this guide, we will start a simple 2 worker node Kubernetes install that runs on Joyent Cloud.
 
