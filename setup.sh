@@ -42,9 +42,7 @@ main() {
 
     echo ""
     echo "Congradulations, your Kubernetes cluster setup has been complete."
-    echo "----> Rancher dashboard is at http://$(cat terraform/masters.ip):8080"
     echo ""
-
     echo "It will take a few minutes for all the Kubernetes process to start up before you can access Kubernetes Dashboard"
     echo "----> To check what processes/containers are coming up, go to http://$(cat terraform/masters.ip):8080/env/$(cat ansible/tmp/kubernetes_environment.id)/infra/containers"
     echo "    once all these containers are up, you should be able to access Kubernetes by its dashboard or using CLI"
@@ -52,20 +50,13 @@ main() {
     echo "Waiting on Kubernetes dashboard to come up."
     echo ""
 
-    KUBERNETES_DASHBOARD_LOCATION=0
-    while [ $KUBERNETES_DASHBOARD_LOCATION == 0 ]; do
-        curl -s "http://$(cat terraform/masters.ip):8080/v2-beta/projects/$(cat ansible/tmp/kubernetes_environment.id)/containers/" > containers.json
-        CONTAINER_COUNT=$(cat containers.json | python -c "import sys, json; item_dict = json.load(sys.stdin)['data']; print len(item_dict)")
-        for (( i=0; i<$CONTAINER_COUNT; i++ )); do
-            CONTAINER_NAME=$(cat containers.json | python -c "import sys, json; print json.load(sys.stdin)['data'][$i]['name']")
-            if [[ $CONTAINER_NAME =~ "kubernetes-dashboard" ]]; then
-                if [[ $(curl -s "http://$(cat terraform/masters.ip):8080/v2-beta/projects/$(cat ansible/tmp/kubernetes_environment.id)/containers/" | python -c "import sys, json; print json.load(sys.stdin)['data'][$i]['state']") =~ "running" ]]; then
-                    KUBERNETES_DASHBOARD_LOCATION=$i
-                fi
-            fi
-        done
+    KUBERNETES_DASHBOARD_UP=
+    while [ ! $KUBERNETES_DASHBOARD_UP ]; do
         echo -ne "."
-        sleep 1
+        sleep 5
+        if [ $(curl -s http://$(cat terraform/masters.ip):8080/r/projects/$(cat ansible/tmp/kubernetes_environment.id)/kubernetes-dashboard:9090/ | grep -i kubernetes | wc -l) -ne 0 ]; then
+            KUBERNETES_DASHBOARD_UP=true
+        fi
     done
     echo ""
     echo "----> Kubernetes dashboard is at http://$(cat terraform/masters.ip):8080/r/projects/$(cat ansible/tmp/kubernetes_environment.id)/kubernetes-dashboard:9090/"
@@ -223,7 +214,7 @@ function setVarDefaults {
         KUBERNETES_DESCRIPTION=$KUBERNETES_NAME
         RANCHER_MASTER_HOSTNAME="kubemaster"
         KUBERNETES_NODE_HOSTNAME_BEGINSWITH="kubenode"
-        KUBERNETES_NUMBER_OF_NODES=2
+        KUBERNETES_NUMBER_OF_NODES=1
         RANCHER_MASTER_NETWORKS=
         KUBERNETES_NODE_NETWORKS=
         HOST_PACKAGE=
@@ -442,7 +433,7 @@ function verifyConfig {
     echo "Make sure the above information is correct before answering:"
     echo "    to view list of networks call \"triton networks -l\""
     echo "    to view list of packages call \"triton packages -l\""
-    echo "Make sure that the nodes and master are part of networks that can communicate with each other."
+    echo "WARN: Make sure that the nodes and master are part of networks that can communicate with each other and this system from which the setup is running."
 
 
     while true; do
@@ -478,12 +469,15 @@ function cleanRunner {
                 terraform destroy -force 2> /dev/null
                 cd ..
             fi
+            for host_key in $(cat terraform/hosts.ip terraform/masters.ip); do
+                ssh-keygen -R $host_key 2>&1 >> /dev/null
+            done
             rm -rf terraform/hosts.ip terraform/masters.ip terraform/terraform.* terraform/.terraform* terraform/rancher.tf 2>&1 >> /dev/null
 
             sed -i.tmp -e "s~private_key_file = .*$~private_key_file = ~g" ansible/ansible.cfg
             rm -f  ansible/hosts ansible/*retry ansible/ansible.cfg.tmp 2>&1 >> /dev/null
 
-            rm -rf ~/.ssh/known_hosts tmp/* containers.json 2>&1 >> /dev/null
+            rm -rf tmp/* 2>&1 >> /dev/null
 
             # blank out config
             echo "SDC_URL=" > config
