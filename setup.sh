@@ -41,7 +41,7 @@ main() {
     runAnsible
 
     echo ""
-    echo "Congradulations, your Kubernetes cluster setup has been complete."
+    echo "Congratulations, your Kubernetes cluster setup has been complete."
     echo ""
     echo "It will take a few minutes for all the Kubernetes process to start up before you can access Kubernetes Dashboard"
     echo "----> To check what processes/containers are coming up, go to http://$(cat terraform/masters.ip):8080/env/$(cat ansible/tmp/kubernetes_environment.id)/infra/containers"
@@ -55,23 +55,25 @@ main() {
     while [ ! $KUBERNETES_DASHBOARD_UP ]; do
         echo -ne "."
         sleep 1
-        if ! ((`date +%s` % 15)); then
+        if ! ((`date +%s` % 30)); then
             DASHBOARD_CONTAINER_COUNT=0
-            cRetVal=$(curl -s http://$(cat terraform/masters.ip):8080/r/projects/$(cat ansible/tmp/kubernetes_environment.id)/kubernetes-dashboard:9090/)
+            cRetVal=$(curl --connect-timeout 5 --max-time 5 -s http://$(cat terraform/masters.ip):8080/r/projects/$(cat ansible/tmp/kubernetes_environment.id)/kubernetes-dashboard:9090/)
             if [ $(echo $cRetVal | grep -i kubernetes | wc -l) -ne 0 ]; then
                 KUBERNETES_DASHBOARD_UP=true
                 echo -ne "+"
-            # BUG restart stuck dashboard container
+            # BUG kill stuck dashboard container
             else
                 for node in $(cat terraform/hosts.ip); do
-                    DASHBOARD_CONTAINER_COUNT=$(($DASHBOARD_CONTAINER_COUNT + $(ssh root@$node docker ps | grep kubernetes-dashboard | awk '{print $1}' | wc -w)))
+                    DASHBOARD_CONTAINER_COUNT=$(($DASHBOARD_CONTAINER_COUNT + $(ssh -o StrictHostKeyChecking=no root@$node docker ps | grep kubernetes-dashboard | awk '{print $1}' | wc -w)))
                 done
-                if [ $DASHBOARD_CONTAINER_COUNT -eq 2 ] && [ $(curl -s http://$(cat terraform/masters.ip):8080/r/projects/$(cat ansible/tmp/kubernetes_environment.id)/kubernetes-dashboard:9090/ | grep -i "Service Unavailable" | wc -l) -ne 0 ]; then
+                if [ $DASHBOARD_CONTAINER_COUNT -eq 2 ] && [ $(curl --connect-timeout 5 --max-time 5 -s http://$(cat terraform/masters.ip):8080/r/projects/$(cat ansible/tmp/kubernetes_environment.id)/kubernetes-dashboard:9090/ | grep -i "Service Unavailable" | wc -l) -ne 0 ]; then
                     for node in $(cat terraform/hosts.ip); do
-                        dashboard_container=$(ssh root@$node docker ps | grep kubernetes-dashboard | grep -v k8s_kubernetes-dashboard | awk '{print $1}')
-                        ssh root@$node "docker restart $dashboard_container" >> /dev/null 2>&1
+                        dashboard_container=$(ssh -o StrictHostKeyChecking=no root@$node docker ps | grep k8s_POD.*dashboard | awk '{print $1}')
+                        ssh -o StrictHostKeyChecking=no root@$node "docker stop -t0 $dashboard_container" >> /dev/null 2>&1
+                        sleep 1
+                        echo -ne "-"
+                        ssh -o StrictHostKeyChecking=no root@$node "docker rm $dashboard_container" >> /dev/null 2>&1
                     done
-                    echo -ne "-"
                 fi
             fi
         fi
