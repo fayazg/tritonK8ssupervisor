@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 main() {
     if [[ ! -z "$1" && $1 == "-c" ]]; then
@@ -66,7 +66,7 @@ main() {
                 for node in $(cat terraform/hosts.ip); do
                     DASHBOARD_CONTAINER_COUNT=$(($DASHBOARD_CONTAINER_COUNT + $(ssh -o StrictHostKeyChecking=no root@$node docker ps | grep kubernetes-dashboard | awk '{print $1}' | wc -w)))
                 done
-                if [ $DASHBOARD_CONTAINER_COUNT -eq 2 ] && [ $(curl --connect-timeout 5 --max-time 5 -s http://$(cat terraform/masters.ip):8080/r/projects/$(cat ansible/tmp/kubernetes_environment.id)/kubernetes-dashboard:9090/ | grep -i "Service Unavailable" | wc -l) -ne 0 ]; then
+                if [[ $DASHBOARD_CONTAINER_COUNT -eq 2 && $(curl --connect-timeout 5 --max-time 5 -s http://$(cat terraform/masters.ip):8080/r/projects/$(cat ansible/tmp/kubernetes_environment.id)/kubernetes-dashboard:9090/ | grep -i "Service Unavailable" | wc -l) -ne 0 ]]; then
                     for node in $(cat terraform/hosts.ip); do
                         dashboard_container=$(ssh -o StrictHostKeyChecking=no root@$node docker ps | grep k8s_POD.*dashboard | awk '{print $1}')
                         ssh -o StrictHostKeyChecking=no root@$node "docker stop -t0 $dashboard_container" >> /dev/null 2>&1
@@ -78,6 +78,7 @@ main() {
             fi
         fi
     done
+
     echo ""
     echo "----> Kubernetes dashboard is at http://$(cat terraform/masters.ip):8080/r/projects/$(cat ansible/tmp/kubernetes_environment.id)/kubernetes-dashboard:9090/"
     echo "----> Kubernetes CLI config is at http://$(cat terraform/masters.ip):8080/env/$(cat ansible/tmp/kubernetes_environment.id)/kubernetes/kubectl"
@@ -85,7 +86,7 @@ main() {
     echo "    CONGRATULATIONS, YOU HAVE CONFIGURED YOUR KUBERNETES ENVIRONMENT!"
 }
 
-function getArgument {
+getArgument() {
     # $1 message
     # $2 default
     while true; do
@@ -102,12 +103,16 @@ function getArgument {
         fi
     done
 }
-function runAnsible {
+runAnsible() {
     cd ansible
     ansible-playbook -i hosts clusterUp.yml
     cd ..
 }
-function createAnsibleConfigs {
+createAnsibleConfigs() {
+    if [[ ! -e terraform/masters.ip || ! -e terraform/hosts.ip ]]; then
+        echo "Terraform had too many errors. Make sure you haven't reached your provisioning limit."
+        exit 1
+    fi
     echo "Creating ansible hosts file and variable files"
     rm ansible/hosts 2> /dev/null
     echo "[MASTER]" >> ansible/hosts
@@ -120,13 +125,12 @@ function createAnsibleConfigs {
     echo "kubernetes_name: \"$(echo $KUBERNETES_NAME | sed 's/"//g')\"" >> ansible/roles/ranchermaster/vars/vars.yml
     echo "kubernetes_description: \"$(echo $KUBERNETES_DESCRIPTION | sed 's/"//g')\"" >> ansible/roles/ranchermaster/vars/vars.yml
     cd ansible
-    sed -i.tmp -e "s;private_key_file = .*$;private_key_file = $(echo $SDC_KEY | sed 's/"//g');g" ansible.cfg
+    sed "s;private_key_file = .*$;private_key_file = $(echo $SDC_KEY | sed 's/"//g');g" ansible.cfg > tmp.cfg && mv tmp.cfg ansible.cfg
     cd ..
-    rm ansible/ansible.cfg.tmp >> /dev/null 2>&1
 
     echo "    created: ansible/roles/ranchermaster/vars/vars.yml"
 }
-function runTerraformTasks {
+runTerraformTasks() {
     if [ -e terraform/rancher.tf ]
     then
         echo "warning: a previous terraform configuration has been found"
@@ -150,7 +154,7 @@ function runTerraformTasks {
         cd ..
     fi
 }
-function updateTerraformConfig {
+updateTerraformConfig() {
     if [ $1 == "master" ]; then
         echo ""  >> terraform/rancher.tf
         echo "module \"$2\" {" >> terraform/rancher.tf
@@ -187,48 +191,40 @@ function updateTerraformConfig {
     echo "error: problem updating terraform configuration..."
     exit 1
 }
-function setConfigToFile {
-    sed -i.tmp -e "s~RANCHER_MASTER_NETWORKS=.*$~RANCHER_MASTER_NETWORKS=$RANCHER_MASTER_NETWORKS~g" config
-    sed -i.tmp -e "s~KUBERNETES_NODE_NETWORKS=.*$~KUBERNETES_NODE_NETWORKS=$KUBERNETES_NODE_NETWORKS~g" config
-    sed -i.tmp -e "s~KUBERNETES_NUMBER_OF_NODES=.*$~KUBERNETES_NUMBER_OF_NODES=$KUBERNETES_NUMBER_OF_NODES~g" config
-    sed -i.tmp -e "s~KUBERNETES_NAME=.*$~KUBERNETES_NAME=\"$KUBERNETES_NAME\"~g" config
-    sed -i.tmp -e "s~KUBERNETES_DESCRIPTION=.*$~KUBERNETES_DESCRIPTION=\"$KUBERNETES_DESCRIPTION\"~g" config
-    sed -i.tmp -e "s~RANCHER_MASTER_HOSTNAME=.*$~RANCHER_MASTER_HOSTNAME=\"$RANCHER_MASTER_HOSTNAME\"~g" config
-    sed -i.tmp -e "s~KUBERNETES_NODE_HOSTNAME_BEGINSWITH=.*$~KUBERNETES_NODE_HOSTNAME_BEGINSWITH=\"$KUBERNETES_NODE_HOSTNAME_BEGINSWITH\"~g" config
-    sed -i.tmp -e "s~HOST_PACKAGE=.*$~HOST_PACKAGE=\"$HOST_PACKAGE\"~g" config
-    rm config.tmp >> /dev/null 2>&1
+setConfigToFile() {
+    echo "RANCHER_MASTER_NETWORKS=$RANCHER_MASTER_NETWORKS" >> config
+    echo "KUBERNETES_NODE_NETWORKS=$KUBERNETES_NODE_NETWORKS" >> config
+    echo "KUBERNETES_NUMBER_OF_NODES=$KUBERNETES_NUMBER_OF_NODES" >> config
+    echo "KUBERNETES_NAME=\"$KUBERNETES_NAME\"" >> config
+    echo "KUBERNETES_DESCRIPTION=\"$KUBERNETES_DESCRIPTION\"" >> config
+    echo "RANCHER_MASTER_HOSTNAME=\"$RANCHER_MASTER_HOSTNAME\"" >> config
+    echo "KUBERNETES_NODE_HOSTNAME_BEGINSWITH=\"$KUBERNETES_NODE_HOSTNAME_BEGINSWITH\"" >> config
+    echo "HOST_PACKAGE=\"$HOST_PACKAGE\"" >> config
 }
-function setConfigFromTritonENV {
+setConfigFromTritonENV() {
     eval "$(triton env)"
-    sed -i.tmp -e "s~SDC_URL=.*$~SDC_URL=\"$SDC_URL\"~g" config
-    sed -i.tmp -e "s~SDC_ACCOUNT=.*$~SDC_ACCOUNT=\"$SDC_ACCOUNT\"~g" config
-    sed -i.tmp -e "s~SDC_KEY_ID=.*$~SDC_KEY_ID=\"$SDC_KEY_ID\"~g" config
+    echo "SDC_URL=\"$SDC_URL\"" >> config
+    echo "SDC_ACCOUNT=\"$SDC_ACCOUNT\"" >> config
+    echo "SDC_KEY_ID=\"$SDC_KEY_ID\"" >> config
 
     local foundKey=false
     for f in $(ls ~/.ssh); do
         if [[ "$(ssh-keygen -E md5 -lf ~/.ssh/$(echo $f | sed 's/.pub$//') 2> /dev/null | awk '{print $2}' | sed 's/^MD5://')" == "$SDC_KEY_ID" ]]; then
-            sed -i.tmp -e "s~SDC_KEY=.*$~SDC_KEY=\"\~/.ssh/$(echo $f | sed 's/.pub$//')\"~g" config
+            echo "SDC_KEY=\"~/.ssh/$(echo $f | sed 's/.pub$//')\"" >> config
             foundKey=true
+            break
         fi
     done
-    rm config.tmp >> /dev/null 2>&1
     if [[ ! foundKey ]]; then
         echo "error: couldn't find the ssh key associated with fingerprint $SDC_KEY_ID in ~/.ssh/ directory..."
         exit 1
     fi
+    echo "" >> config
 }
-function setVarDefaults {
-    if [ ! $(grep KUBERNETES_NAME=$ config) ]; then
-        echo "warn: old configuration found"
-        echo "    Make sure you are not using the defaults if you already have the old environment up and running"
-        KUBERNETES_NAME=$(grep KUBERNETES_NAME= config | sed "s/KUBERNETES_NAME=//g")
-        KUBERNETES_DESCRIPTION=$(grep KUBERNETES_DESCRIPTION= config | sed "s/KUBERNETES_DESCRIPTION=//g")
-        RANCHER_MASTER_HOSTNAME=$(grep RANCHER_MASTER_HOSTNAME= config | sed "s/RANCHER_MASTER_HOSTNAME=//g")
-        KUBERNETES_NODE_HOSTNAME_BEGINSWITH=$(grep KUBERNETES_NODE_HOSTNAME_BEGINSWITH= config | sed "s/KUBERNETES_NODE_HOSTNAME_BEGINSWITH=//g")
-        KUBERNETES_NUMBER_OF_NODES=$(grep KUBERNETES_NUMBER_OF_NODES= config | sed "s/KUBERNETES_NUMBER_OF_NODES=//g")
-        RANCHER_MASTER_NETWORKS=$(grep RANCHER_MASTER_NETWORKS= config | sed "s/RANCHER_MASTER_NETWORKS=//g")
-        KUBERNETES_NODE_NETWORKS=$(grep KUBERNETES_NODE_NETWORKS= config | sed "s/KUBERNETES_NODE_NETWORKS=//g")
-        HOST_PACKAGE=$(grep HOST_PACKAGE= config | sed "s/HOST_PACKAGE=//g")
+setVarDefaults() {
+    if [ -e config ]; then
+        echo "error: old configuration found"
+        exit 1
     else
         KUBERNETES_NAME="k8s dev"
         KUBERNETES_DESCRIPTION=$KUBERNETES_NAME
@@ -238,9 +234,10 @@ function setVarDefaults {
         RANCHER_MASTER_NETWORKS=
         KUBERNETES_NODE_NETWORKS=
         HOST_PACKAGE=
+        echo "ANSIBLE_HOST_KEY_CHECKING=False" >> config
     fi
 }
-function getConfigFromUser {
+getConfigFromUser() {
     # get networks from the current triton profile to prompt
     local networks=$(triton networks -oname,id | grep -v "^NAME.*ID$" | tr -s " " | tr " " "=" | sort)
     # get packages for the current triton profile to prompt
@@ -437,7 +434,7 @@ function getConfigFromUser {
     done
     HOST_PACKAGE=$(echo $HOST_PACKAGE | sed 's/"//g')
 }
-function verifyConfig {
+verifyConfig() {
     echo "################################################################################"
     echo "Verify that the following configuration is correct:"
     echo ""
@@ -469,13 +466,13 @@ function verifyConfig {
     esac
     done
 }
-function cleanRunner {
+cleanRunner() {
     echo "Clearing settings...."
     while true; do
         if [ -e terraform/masters.ip ]; then
             echo "WARNING: You are about to destroy the following KVMs associated with Rancher cluster:"
-            cat terraform/masters.ip 2> /dev/null
-            cat terraform/hosts.ip 2> /dev/null
+            cat terraform/masters.ip 2>/dev/null
+            cat terraform/hosts.ip 2>/dev/null
 
             read -p "Do you wish to destroy the KVMs and reset configuration (yes | no)? " yn
         else
@@ -489,32 +486,17 @@ function cleanRunner {
                 terraform destroy -force 2> /dev/null
                 cd ..
             fi
-            for host_key in $(cat terraform/hosts.ip terraform/masters.ip); do
-                ssh-keygen -R $host_key >> /dev/null 2>&1
-            done
-            rm -rf terraform/hosts.ip terraform/masters.ip terraform/terraform.* terraform/.terraform* terraform/rancher.tf >> /dev/null 2>&1
+            if [[ -e terraform/hosts.ip  &&  -e terraform/masters.ip ]]; then
+                for host_key in $(cat terraform/hosts.ip terraform/masters.ip); do
+                    ssh-keygen -R $host_key 2>&1 >> /dev/null
+                done
+            fi
+            rm -rf terraform/hosts.ip terraform/masters.ip terraform/terraform.* terraform/.terraform* terraform/rancher.tf 2>&1 >> /dev/null
 
-            sed -i.tmp -e "s~private_key_file = .*$~private_key_file = ~g" ansible/ansible.cfg
-            rm -f  ansible/hosts ansible/*retry ansible/ansible.cfg.tmp >> /dev/null 2>&1
+            sed "s~private_key_file = .*$~private_key_file = ~g" ansible/ansible.cfg > tmp && mv tmp ansible/ansible.cfg
+            rm -f  ansible/hosts ansible/*retry ansible/ansible.cfg.tmp 2>&1 >> /dev/null
+            rm -rf config tmp/* 2>&1 >> /dev/null
 
-            rm -rf tmp/* >> /dev/null 2>&1
-
-            # blank out config
-            echo "SDC_URL=" > config
-            echo "SDC_ACCOUNT=" >> config
-            echo "SDC_KEY_ID=" >> config
-            echo "SDC_KEY=" >> config
-            echo "" >> config
-            echo "RANCHER_MASTER_HOSTNAME=" >> config
-            echo "RANCHER_MASTER_NETWORKS=" >> config
-            echo "KUBERNETES_NAME=" >> config
-            echo "KUBERNETES_DESCRIPTION=" >> config
-            echo "KUBERNETES_NODE_HOSTNAME_BEGINSWITH=" >> config
-            echo "KUBERNETES_NUMBER_OF_NODES=" >> config
-            echo "KUBERNETES_NODE_NETWORKS=" >> config
-            echo "HOST_PACKAGE=" >> config
-            echo "" >> config
-            echo "ANSIBLE_HOST_KEY_CHECKING=False" >> config
             echo "    All clear!"
             exit 1;;
         no ) exit;;
@@ -522,7 +504,7 @@ function cleanRunner {
     esac
     done
 }
-function debugVars {
+debugVars() {
     echo "KUBERNETES_NAME=$KUBERNETES_NAME"
     echo "KUBERNETES_DESCRIPTION=$KUBERNETES_DESCRIPTION"
     echo "RANCHER_MASTER_HOSTNAME=$RANCHER_MASTER_HOSTNAME"
@@ -532,7 +514,7 @@ function debugVars {
     echo "KUBERNETES_NODE_NETWORKS=$KUBERNETES_NODE_NETWORKS"
     echo "HOST_PACKAGE=$HOST_PACKAGE"
 }
-function getNetworkIDs {
+getNetworkIDs() {
     values=$(echo $1 | tr "," " ")
     local networks
     for network in $values; do
@@ -540,10 +522,10 @@ function getNetworkIDs {
     done
     echo "$networks" | sed 's/^,\(.*\)$/\1/' | sed 's/\(.*\),$/\1/'
 }
-function getPackageID {
+getPackageID() {
     echo "$(triton packages -oname,id | grep "\-kvm-" | grep -v "^NAME.*ID$" | tr -s " " | sort | sed -n "$1"p | awk 'NF>1{print $NF}')"
 }
-function exportVars {
+exportVars() {
     grep -v "^$" config > config.tmp
     while read line; do
         export "$line"
