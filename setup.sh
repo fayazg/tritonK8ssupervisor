@@ -1,8 +1,14 @@
 #!/usr/bin/env bash
 
+set -o errexit
+set -o pipefail
+# set -o xtrace
+
+
 main() {
-    if [[ ! -z "$1" && $1 == "-c" ]]; then
+    if [[ ! -z "$1" && "$1" == "-c" ]]; then
         cleanRunner
+        exit 0
     fi
 
     if [ -e terraform/rancher.tf ]; then
@@ -50,29 +56,28 @@ main() {
     echo "Waiting on Kubernetes dashboard to come up."
     echo ""
 
-    KUBERNETES_DASHBOARD_UP=
-    DASHBOARD_CONTAINER_COUNT=
-    while [ ! $KUBERNETES_DASHBOARD_UP ]; do
+    KUBERNETES_DASHBOARD_UP=false
+    DASHBOARD_CONTAINER_COUNT=0
+    while ! "$KUBERNETES_DASHBOARD_UP"; do
         echo -ne "."
         sleep 1
-        if ! ((`date +%s` % 30)); then
+        if ! ((`date +%s` % 15)); then
             DASHBOARD_CONTAINER_COUNT=0
             cRetVal=$(curl --connect-timeout 5 --max-time 5 -s http://$(cat terraform/masters.ip):8080/r/projects/$(cat ansible/tmp/kubernetes_environment.id)/kubernetes-dashboard:9090/)
             if [ $(echo $cRetVal | grep -i kubernetes | wc -l) -ne 0 ]; then
                 KUBERNETES_DASHBOARD_UP=true
-                echo -ne "+"
             # BUG kill stuck dashboard container
             else
                 for node in $(cat terraform/hosts.ip); do
-                    DASHBOARD_CONTAINER_COUNT=$(($DASHBOARD_CONTAINER_COUNT + $(ssh -o StrictHostKeyChecking=no root@$node docker ps | grep kubernetes-dashboard | awk '{print $1}' | wc -w)))
+                    let DASHBOARD_CONTAINER_COUNT=$DASHBOARD_CONTAINER_COUNT+$(ssh -o StrictHostKeyChecking=no root@$node docker ps | grep kubernetes-dashboard | awk '{print $1}' | wc -w | sed "s/ //g") || true
                 done
                 if [[ $DASHBOARD_CONTAINER_COUNT -eq 2 && $(curl --connect-timeout 5 --max-time 5 -s http://$(cat terraform/masters.ip):8080/r/projects/$(cat ansible/tmp/kubernetes_environment.id)/kubernetes-dashboard:9090/ | grep -i "Service Unavailable" | wc -l) -ne 0 ]]; then
                     for node in $(cat terraform/hosts.ip); do
-                        dashboard_container=$(ssh -o StrictHostKeyChecking=no root@$node docker ps | grep k8s_POD.*dashboard | awk '{print $1}')
-                        ssh -o StrictHostKeyChecking=no root@$node "docker stop -t0 $dashboard_container" >> /dev/null 2>&1
-                        sleep 1
-                        echo -ne "-"
-                        ssh -o StrictHostKeyChecking=no root@$node "docker rm $dashboard_container" >> /dev/null 2>&1
+                        dashboard_container="$(ssh -o StrictHostKeyChecking=no root@$node docker ps | grep k8s_POD.*dashboard | awk '{print $1}')" || true
+                        if [ "${dashboard_container:-}" != "" ]; then
+                            ssh -o StrictHostKeyChecking=no root@$node "docker stop -t0 $dashboard_container" >> /dev/null 2>&1
+                        fi
+                        echo -ne "."
                     done
                 fi
             fi
@@ -114,7 +119,7 @@ createAnsibleConfigs() {
         exit 1
     fi
     echo "Creating ansible hosts file and variable files"
-    rm ansible/hosts 2> /dev/null
+    rm -f ansible/hosts 2> /dev/null
     echo "[MASTER]" >> ansible/hosts
     cat terraform/masters.ip >> ansible/hosts
     echo "[HOST]" >> ansible/hosts
@@ -224,18 +229,17 @@ setConfigFromTritonENV() {
 setVarDefaults() {
     if [ -e config ]; then
         echo "error: old configuration found"
-        exit 1
-    else
-        KUBERNETES_NAME="k8s dev"
-        KUBERNETES_DESCRIPTION=$KUBERNETES_NAME
-        RANCHER_MASTER_HOSTNAME="kubemaster"
-        KUBERNETES_NODE_HOSTNAME_BEGINSWITH="kubenode"
-        KUBERNETES_NUMBER_OF_NODES=1
-        RANCHER_MASTER_NETWORKS=
-        KUBERNETES_NODE_NETWORKS=
-        HOST_PACKAGE=
-        echo "ANSIBLE_HOST_KEY_CHECKING=False" >> config
+        cleanRunner
     fi
+    KUBERNETES_NAME="k8s dev"
+    KUBERNETES_DESCRIPTION=$KUBERNETES_NAME
+    RANCHER_MASTER_HOSTNAME="kubemaster"
+    KUBERNETES_NODE_HOSTNAME_BEGINSWITH="kubenode"
+    KUBERNETES_NUMBER_OF_NODES=1
+    RANCHER_MASTER_NETWORKS=
+    KUBERNETES_NODE_NETWORKS=
+    HOST_PACKAGE=
+    echo "ANSIBLE_HOST_KEY_CHECKING=False" >> config
 }
 getConfigFromUser() {
     # get networks from the current triton profile to prompt
@@ -457,7 +461,7 @@ verifyConfig() {
     read -p "Is the above config correct (yes | no)? " yn
     case $yn in
         yes )
-            return 1
+            break
             ;;
         no )
             exit 0
@@ -486,7 +490,7 @@ cleanRunner() {
                 terraform destroy -force 2> /dev/null
                 cd ..
             fi
-            if [[ -e terraform/hosts.ip  &&  -e terraform/masters.ip ]]; then
+            if [[ -e terraform/hosts.ip  &&  -e terraform/masters.ip  &&  -e ~/.ssh/known_hosts ]]; then
                 for host_key in $(cat terraform/hosts.ip terraform/masters.ip); do
                     ssh-keygen -R $host_key 2>&1 >> /dev/null
                 done
@@ -498,7 +502,7 @@ cleanRunner() {
             rm -rf config tmp/* 2>&1 >> /dev/null
 
             echo "    All clear!"
-            exit 1;;
+            return;;
         no ) exit;;
         * ) echo "Please answer yes or no.";;
     esac
