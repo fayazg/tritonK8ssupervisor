@@ -1,3 +1,5 @@
+> # ###This repo is out of date. Please check out [https://github.com/joyent/k8s-triton-supervisor](https://github.com/joyent/k8s-triton-supervisor).###
+
 ## Quick Start Guide
 In this guide, we will start a simple 2 worker node Kubernetes install that runs on Joyent Cloud.
 
